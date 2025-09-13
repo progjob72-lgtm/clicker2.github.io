@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>TMA Clicker</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root { --bg:#111; --fg:#fff; --sub:#aaa; --btn:#2ea; }
+    html,body { height:100%; margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; }
+    .wrap { min-height:100%; display:flex; align-items:center; justify-content:center; }
+    .card { width:min(420px,92vw); padding:24px; border-radius:16px; background:rgba(255,255,255,0.06); box-shadow:0 6px 24px rgba(0,0,0,0.3); text-align:center; }
+    h1 { margin:0 0 12px; font-size:24px; }
+    .sub { color:var(--sub); margin-bottom:20px; }
+    .score { font-size:48px; margin:8px 0 20px; }
+    .btn { width:100%; height:64px; border:0; border-radius:16px; font-size:20px; font-weight:700; cursor:pointer; background:var(--btn); color:#003; }
+    .row { display:flex; gap:8px; margin-top:12px; }
+    .row .btn { height:48px; flex:1; font-size:16px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>Clicker</h1>
+    <div class="sub" id="hello">Загрузка…</div>
+    <div class="score" id="score">0</div>
+    <button class="btn" id="tap">ТЫК!</button>
+    <div class="row">
+      <button class="btn" id="save">Сохранить</button>
+      <button class="btn" id="reset">Сброс</button>
+    </div>
+    <div class="sub" id="info"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const tg = window.Telegram?.WebApp;
+  tg?.expand();      // попытка фулскрина
+  tg?.ready();       // сигнал клиенту
+
+  // Тема из Telegram
+  const th = tg?.themeParams || {};
+  const css = (k, def) => th[k] || def;
+  document.documentElement.style.setProperty('--bg', css('bg_color','#111'));
+  document.documentElement.style.setProperty('--fg', css('text_color','#fff'));
+  document.documentElement.style.setProperty('--sub', css('hint_color','#aaa'));
+  document.documentElement.style.setProperty('--btn', css('button_color','#2ee'));
+
+  // Приветствие + start_param
+  const hello = document.getElementById('hello');
+  const startParam = tg?.initDataUnsafe?.start_param || new URLSearchParams(location.search).get('tgWebAppStartParam');
+  const user = tg?.initDataUnsafe?.user;
+  hello.textContent = `Привет, ${user?.first_name ?? 'гость'}${startParam ? ' · ' + startParam : ''}`;
+
+  // Счёт
+  const scoreEl = document.getElementById('score');
+  let score = Number(localStorage.getItem('tma_clicker_score') || 0);
+  const setScore = v => { score = v; scoreEl.textContent = String(score); };
+  setScore(score);
+
+  // Кнопки
+  const tapBtn = document.getElementById('tap');
+  const saveBtn = document.getElementById('save');
+  const resetBtn = document.getElementById('reset');
+  const info = document.getElementById('info');
+
+  function hapticImpact(str='medium') { try { tg?.HapticFeedback?.impactOccurred(str); } catch(_){} }
+  function toast(msg) { try { tg?.showPopup({message: msg}); } catch { info.textContent = msg; } }
+
+  tapBtn.addEventListener('click', () => {
+    setScore(score + 1);
+    hapticImpact('light');
+  });
+
+  saveBtn.addEventListener('click', async () => {
+    localStorage.setItem('tma_clicker_score', String(score));
+    // (опционально) отправить на бэкенд:
+    // await fetch('/api/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ score, initData: tg?.initData }) });
+    tg?.HapticFeedback?.notificationOccurred('success');
+    toast('Сохранено');
+  });
+
+  resetBtn.addEventListener('click', () => {
+    setScore(0);
+    localStorage.setItem('tma_clicker_score','0');
+    hapticImpact('rigid');
+    toast('Сброшено');
+  });
+
+  // MainButton как альтернативный «ТЫК!»
+  tg?.MainButton.setText('ТЫК!').show();
+  tg?.MainButton.onClick(() => {
+    setScore(score + 1);
+    hapticImpact('light');
+  });
+
+  // Системная BackButton — закрыть мини-приложение
+  tg?.BackButton.show();
+  tg?.BackButton.onClick(() => tg.close());
+})();
+</script>
+</body>
+</html>
